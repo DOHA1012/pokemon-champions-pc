@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import ctypes
 import json
+import time
 
 # Set AppUserModelID to ensure the custom taskbar icon is displayed correctly on Windows
 try:
@@ -362,8 +363,24 @@ class AppLauncher:
         self.btn_auto.config(state=tk.DISABLED)
         
         def run():
+            log_path = os.path.join(BASE_PATH, "ip_debug.log")
+            if os.path.exists(log_path):
+                try: os.remove(log_path)
+                except: pass
+                
+            def log_w(msg):
+                try:
+                    with open(log_path, "a", encoding="utf-8") as lf:
+                        lf.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
+                except: pass
+
+            log_w("Auto setup script triggered.")
+            
             # 1. Find USB device
             stdout, stderr, code = run_cmd([ADB_PATH, "devices"])
+            log_w(f"adb devices stdout:\n{stdout.strip()}")
+            log_w(f"adb devices stderr: {stderr.strip()} code: {code}")
+            
             usb_device = None
             for line in stdout.splitlines():
                 if "List of devices attached" in line or not line.strip():
@@ -371,11 +388,11 @@ class AppLauncher:
                 parts = line.split()
                 if len(parts) >= 2:
                     dev_id = parts[0]
-                    # USB devices typically do not contain IP address format
                     if ":" not in dev_id and "192.168" not in dev_id:
                         usb_device = dev_id
                         break
             
+            log_w(f"Resolved usb_device ID: {usb_device}")
             if not usb_device:
                 def err():
                     self.btn_auto.config(state=tk.NORMAL)
@@ -388,40 +405,57 @@ class AppLauncher:
                 return
             
             # 2. Run adb tcpip 5555
-            run_cmd([ADB_PATH, "-s", usb_device, "tcpip", "5555"])
+            tcpip_out, tcpip_err, tcpip_code = run_cmd([ADB_PATH, "-s", usb_device, "tcpip", "5555"])
+            log_w(f"adb tcpip stdout: {tcpip_out.strip()} stderr: {tcpip_err.strip()} code: {tcpip_code}")
             
             # 3. Get IP address of phone
             phone_ip = None
             
-            # Strategy 1: Check ip route for private IP src (interface independent)
-            ip_stdout, _, _ = run_cmd([ADB_PATH, "-s", usb_device, "shell", "ip route"])
-            for line in ip_stdout.splitlines():
+            # Strategy 1: Check ip route
+            route_out, route_err, route_code = run_cmd([ADB_PATH, "-s", usb_device, "shell", "ip route"])
+            log_w(f"Strategy 1 (ip route) code: {route_code}")
+            log_w(f"Strategy 1 raw stdout:\n{route_out}")
+            for line in route_out.splitlines():
                 if "src" in line:
                     match = re.search(r"src\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", line)
                     if match:
                         candidate = match.group(1)
-                        if is_private_ip(candidate):
+                        is_priv = is_private_ip(candidate)
+                        log_w(f"Candidate: {candidate}, is_private: {is_priv}")
+                        if is_priv:
                             phone_ip = candidate
                             break
-                            
-            # Strategy 2: Check all IPv4 interfaces (avoids unsupported -o option)
+            
+            # Strategy 2: Check all IPv4 interfaces
             if not phone_ip:
-                ip_stdout, _, _ = run_cmd([ADB_PATH, "-s", usb_device, "shell", "ip -4 addr show"])
-                candidates = re.findall(r"inet\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", ip_stdout)
+                addr_out, addr_err, addr_code = run_cmd([ADB_PATH, "-s", usb_device, "shell", "ip -4 addr show"])
+                log_w(f"Strategy 2 (ip -4 addr show) code: {addr_code}")
+                log_w(f"Strategy 2 raw stdout:\n{addr_out}")
+                candidates = re.findall(r"inet\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", addr_out)
                 for candidate in candidates:
-                    if is_private_ip(candidate):
+                    is_priv = is_private_ip(candidate)
+                    log_w(f"Candidate: {candidate}, is_private: {is_priv}")
+                    if is_priv:
                         phone_ip = candidate
                         break
                         
             # Strategy 3: Check dumpsys wifi fallback
             if not phone_ip:
-                wifi_stdout, _, _ = run_cmd([ADB_PATH, "-s", usb_device, "shell", "dumpsys wifi"])
-                candidates = re.findall(r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", wifi_stdout)
+                wifi_out, wifi_err, wifi_code = run_cmd([ADB_PATH, "-s", usb_device, "shell", "dumpsys wifi"])
+                log_w(f"Strategy 3 (dumpsys wifi) code: {wifi_code} len: {len(wifi_out)}")
+                candidates = re.findall(r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", wifi_out)
+                seen = set()
                 for candidate in candidates:
-                    if is_private_ip(candidate):
+                    if candidate in seen: continue
+                    seen.add(candidate)
+                    is_priv = is_private_ip(candidate)
+                    log_w(f"Wifi Candidate: {candidate}, is_private: {is_priv}")
+                    if is_priv:
                         phone_ip = candidate
                         break
-
+            
+            log_w(f"Final selected phone_ip: {phone_ip}")
+            
             if not phone_ip:
                 def err_ip():
                     self.btn_auto.config(state=tk.NORMAL)
