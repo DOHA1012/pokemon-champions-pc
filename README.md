@@ -8,9 +8,9 @@
 
 이 패키지는 스마트폰에서 구동되는 **포켓몬 챔피언스(Pokémon Champions)** 게임을 PC 화면에 고해상도 독립 창으로 미러링하여 키보드와 마우스로 무선 플레이할 수 있도록 돕는 전용 런처입니다.
 
-## 📥 최신 버전 다운로드 (v1.0.0)
+## 📥 최신 버전 다운로드 (v1.1.0)
 아래 링크에서 런처 패키지 zip 파일을 무료로 다운로드하실 수 있습니다. 다운로드 후 압축을 풀어 사용하세요:
-👉 **[Pokémon Champions PC Standalone Package 다운로드 (ZIP)](https://github.com/DOHA1012/pokemon-champions-pc/releases/download/v1.0.0/Pokemon_Champions_PC.zip)**
+👉 **[Pokémon Champions PC Standalone Package 다운로드 (ZIP)](https://github.com/DOHA1012/pokemon-champions-pc/releases/download/v1.1.0/Pokemon_Champions_PC.zip)**
 
 ### ✨ 주요 핵심 기능
 * **화면 해상도 다중 지원**: 720p부터 4K(3840x2160)까지 다양한 해상도 지원 (2K/4K 무선 스트리밍은 기기 성능 및 공유기 대역폭에 따라 렉이 발생할 수 있습니다.)
@@ -74,9 +74,9 @@
 
 This package is a dedicated launcher designed to mirror **Pokémon Champions** running on an Android device onto a high-resolution, independent PC window, allowing wireless gameplay with a keyboard and mouse.
 
-## 📥 Download Latest Version (v1.0.0)
+## 📥 Download Latest Version (v1.1.0)
 You can download the launcher package zip file for free from the link below. Extract and run it:
-👉 **[Download Pokémon Champions PC Standalone Package (ZIP)](https://github.com/DOHA1012/pokemon-champions-pc/releases/download/v1.0.0/Pokemon_Champions_PC.zip)**
+👉 **[Download Pokémon Champions PC Standalone Package (ZIP)](https://github.com/DOHA1012/pokemon-champions-pc/releases/download/v1.1.0/Pokemon_Champions_PC.zip)**
 
 ### ✨ Core Features
 * **Expanded Resolutions**: Supports resolutions from 720p up to 4K (`3840x2160`, `2560x1440`, `1920x1080`, `1600x900`, `1280x720`, `960x540`).

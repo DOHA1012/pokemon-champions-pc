@@ -10,7 +10,7 @@ import json
 
 # Set AppUserModelID to ensure the custom taskbar icon is displayed correctly on Windows
 try:
-    myappid = 'DOHA1012.PokemonChampions.Launcher.1.0'
+    myappid = 'DOHA1012.PokemonChampions.Launcher.1.1'
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 except Exception:
     pass
@@ -144,8 +144,7 @@ class AppLauncher:
         self.cb_res = ttk.Combobox(
             res_frame, 
             textvariable=self.res_var, 
-            values=["3840x2160", "2560x1440", "1920x1080", "1600x900", "1280x720", "960x540"], 
-            state="readonly"
+            values=["3840x2160", "2560x1440", "1920x1080", "1600x900", "1280x720", "960x540"]
         )
         self.cb_res.pack(fill=tk.X)
         
@@ -352,11 +351,17 @@ class AppLauncher:
             messagebox.showerror("오류", "연결된 기기가 없습니다. 새로고침을 하거나 무선 연결을 완료해 주세요.")
             return
         
+        # Verify resolution format "WIDTHxHEIGHT" (e.g. 1920x1080)
+        res = self.res_var.get().strip().lower()
+        if not re.match(r"^\d+x\d+$", res):
+            messagebox.showwarning("해상도 형식 오류", "해상도 형식이 올바르지 않습니다. '가로x세로' 형식(예: 1280x720)으로 입력해 주세요.\n기본값인 1280x720으로 자동 설정됩니다.")
+            res = "1280x720"
+            self.res_var.set("1280x720")
+            
         # Save current configurations
         self.save_config()
         
         device_id = selected.split()[0]
-        res = self.res_var.get()
         window_title = "Pokémon Champions"
         
         self.set_status("포켓몬 챔피언스 실행 및 미러링 시작...", "blue")
