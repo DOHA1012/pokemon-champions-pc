@@ -217,6 +217,14 @@ class AppLauncher:
         )
         self.chk_borderless.pack(fill=tk.X, pady=(5, 0))
         
+        self.force_ratio_var = tk.BooleanVar(value=False)
+        self.chk_force_ratio = ttk.Checkbutton(
+            res_frame,
+            text="폰 해상도를 PC 비율로 강제 변경 (화면 찌그러짐 방지)",
+            variable=self.force_ratio_var
+        )
+        self.chk_force_ratio.pack(fill=tk.X, pady=(5, 0))
+        
         # 4. Launch Button
         self.btn_launch = tk.Button(
             self.main_frame,
@@ -257,6 +265,7 @@ class AppLauncher:
                     ip = config.get("wireless_ip", "192.168.0.16")
                     res = config.get("resolution", "1280x720")
                     borderless = config.get("borderless", False)
+                    force_ratio = config.get("force_ratio", False)
                     custom_enabled = config.get("custom_resolution_enabled", False)
                     custom_w = config.get("custom_width", "1280")
                     custom_h = config.get("custom_height", "720")
@@ -265,6 +274,7 @@ class AppLauncher:
                     self.txt_ip.insert(0, ip)
                     self.res_var.set(res)
                     self.borderless_var.set(borderless)
+                    self.force_ratio_var.set(force_ratio)
                     
                     self.custom_res_var.set(custom_enabled)
                     self.txt_res_w.config(state=tk.NORMAL)
@@ -290,6 +300,7 @@ class AppLauncher:
             "wireless_ip": self.txt_ip.get().strip(),
             "resolution": self.res_var.get(),
             "borderless": self.borderless_var.get(),
+            "force_ratio": self.force_ratio_var.get(),
             "custom_resolution_enabled": self.custom_res_var.get(),
             "custom_width": custom_w if custom_w else "1280",
             "custom_height": custom_h if custom_h else "720"
@@ -530,6 +541,9 @@ class AppLauncher:
         
         self.set_status("포켓몬 챔피언스 실행 및 미러링 시작...", "blue")
         
+        # Check if we should force ratio (temporarily resize primary screen)
+        is_force_ratio = self.force_ratio_var.get()
+        
         # Hide the main Tkinter window immediately so it feels like it closed
         self.root.withdraw()
         
@@ -544,11 +558,24 @@ class AppLauncher:
                 "-p", PKG_NAME, "-c", "android.intent.category.LAUNCHER", "1"
             ])
             
+            # Temporarily resize screen if force_ratio is checked
+            if is_force_ratio:
+                # Calculate suitable density
+                try:
+                    w_val = int(res.split('x')[0])
+                    density_val = int((w_val / 1920) * 420)
+                    density_val = max(160, min(640, density_val))
+                except:
+                    density_val = 420
+                
+                run_cmd([ADB_PATH, "-s", device_id, "shell", "wm", "size", res])
+                run_cmd([ADB_PATH, "-s", device_id, "shell", "wm", "density", str(density_val)])
+                time.sleep(0.5)  # give it a brief moment to settle
+            
             # 2. Run scrcpy with custom window title and screen-off/stay-awake parameters
             scrcpy_args = [
                 SCRCPY_PATH,
                 "-s", device_id,
-                f"--new-display={res}",
                 f"--start-app={PKG_NAME}",
                 "--no-vd-system-decorations",
                 "--turn-screen-off",
@@ -556,64 +583,80 @@ class AppLauncher:
                 f"--window-title={window_title}"
             ]
             
+            if not is_force_ratio:
+                scrcpy_args.append(f"--new-display={res}")
+            
             if self.borderless_var.get():
                 scrcpy_args.extend(["--window-borderless", "--fullscreen"])
             
             try:
                 # Launch scrcpy in background without CMD window
-                subprocess.Popen(
+                p = subprocess.Popen(
                     scrcpy_args,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     creationflags=subprocess.CREATE_NO_WINDOW
                 )
             except Exception as e:
-                # If failed to launch, we need to show the window again to display error
+                # If failed to launch, restore screen first then show error
+                if is_force_ratio:
+                    run_cmd([ADB_PATH, "-s", device_id, "shell", "wm", "size", "reset"])
+                    run_cmd([ADB_PATH, "-s", device_id, "shell", "wm", "density", "reset"])
                 def err(msg):
                     self.root.deiconify()
                     messagebox.showerror("scrcpy 실행 오류", f"scrcpy 실행에 실패했습니다:\n{msg}")
                 self.root.after(0, lambda: err(str(e)))
                 return
             
-            # 3. Wait for scrcpy window and set its icon dynamically
-            icon_path = os.path.join(BASE_PATH, "bin", "scrcpy", "pokemon_icon.ico")
-            if not os.path.exists(icon_path):
-                icon_path = os.path.join(BASE_PATH, "pokemon_icon.ico")
-                
-            if os.path.exists(icon_path):
-                try:
-                    import time
-                    import ctypes
+            # 3. Wait for scrcpy window and set its icon dynamically in a background thread
+            def set_icon_thread():
+                icon_path = os.path.join(BASE_PATH, "bin", "scrcpy", "pokemon_icon.ico")
+                if not os.path.exists(icon_path):
+                    icon_path = os.path.join(BASE_PATH, "pokemon_icon.ico")
                     
-                    user32 = ctypes.windll.user32
-                    WM_SETICON = 0x80
-                    ICON_SMALL = 0
-                    ICON_BIG = 1
-                    IMAGE_ICON = 1
-                    LR_LOADFROMFILE = 0x0010
-                    
-                    # Wait up to 12 seconds for the window to appear
-                    hwnd = None
-                    for _ in range(60):
-                        time.sleep(0.2)
-                        hwnd = user32.FindWindowW(None, window_title)
+                if os.path.exists(icon_path):
+                    try:
+                        import time
+                        import ctypes
+                        
+                        user32 = ctypes.windll.user32
+                        WM_SETICON = 0x80
+                        ICON_SMALL = 0
+                        ICON_BIG = 1
+                        IMAGE_ICON = 1
+                        LR_LOADFROMFILE = 0x0010
+                        
+                        # Wait up to 12 seconds for the window to appear
+                        hwnd = None
+                        for _ in range(60):
+                            time.sleep(0.2)
+                            hwnd = user32.FindWindowW(None, window_title)
+                            if hwnd:
+                                break
+                                
                         if hwnd:
-                            break
-                            
-                    if hwnd:
-                        # Load icon
-                        h_icon = user32.LoadImageW(
-                            None,
-                            icon_path,
-                            IMAGE_ICON,
-                            0, 0,
-                            LR_LOADFROMFILE
-                        )
-                        if h_icon:
-                            user32.SendMessageW(hwnd, WM_SETICON, ICON_SMALL, h_icon)
-                            user32.SendMessageW(hwnd, WM_SETICON, ICON_BIG, h_icon)
-                except Exception:
-                    pass
+                            # Load icon
+                            h_icon = user32.LoadImageW(
+                                None,
+                                icon_path,
+                                IMAGE_ICON,
+                                0, 0,
+                                LR_LOADFROMFILE
+                            )
+                            if h_icon:
+                                user32.SendMessageW(hwnd, WM_SETICON, ICON_SMALL, h_icon)
+                                user32.SendMessageW(hwnd, WM_SETICON, ICON_BIG, h_icon)
+                    except Exception:
+                        pass
+            
+            threading.Thread(target=set_icon_thread, daemon=True).start()
+            
+            if is_force_ratio:
+                # Wait for scrcpy process to finish
+                p.wait()
+                # Restore phone resolution
+                run_cmd([ADB_PATH, "-s", device_id, "shell", "wm", "size", "reset"])
+                run_cmd([ADB_PATH, "-s", device_id, "shell", "wm", "density", "reset"])
             
             # Exit process cleanly
             import os as local_os
