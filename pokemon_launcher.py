@@ -107,7 +107,7 @@ class AppLauncher:
     def __init__(self, root):
         self.root = root
         self.root.title("Pokémon Champions 무선 실행기")
-        self.root.geometry("450x435")
+        self.root.geometry("450x475")
         self.root.resizable(False, False)
         
         # Style
