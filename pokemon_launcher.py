@@ -408,12 +408,18 @@ class AppLauncher:
             tcpip_out, tcpip_err, tcpip_code = run_cmd([ADB_PATH, "-s", usb_device, "tcpip", "5555"])
             log_w(f"adb tcpip stdout: {tcpip_out.strip()} stderr: {tcpip_err.strip()} code: {tcpip_code}")
             
+            # Wait for device to reconnect after adb tcpip restart
+            log_w("Waiting for device to reconnect...")
+            wait_out, wait_err, wait_code = run_cmd([ADB_PATH, "-s", usb_device, "wait-for-device"])
+            log_w(f"wait-for-device code: {wait_code} stderr: {wait_err.strip()}")
+            time.sleep(1.5)  # Safe buffer for device network initialization
+            
             # 3. Get IP address of phone
             phone_ip = None
             
             # Strategy 1: Check ip route
             route_out, route_err, route_code = run_cmd([ADB_PATH, "-s", usb_device, "shell", "ip route"])
-            log_w(f"Strategy 1 (ip route) code: {route_code}")
+            log_w(f"Strategy 1 (ip route) code: {route_code} stderr: {route_err.strip()}")
             log_w(f"Strategy 1 raw stdout:\n{route_out}")
             for line in route_out.splitlines():
                 if "src" in line:
@@ -429,7 +435,7 @@ class AppLauncher:
             # Strategy 2: Check all IPv4 interfaces
             if not phone_ip:
                 addr_out, addr_err, addr_code = run_cmd([ADB_PATH, "-s", usb_device, "shell", "ip -4 addr show"])
-                log_w(f"Strategy 2 (ip -4 addr show) code: {addr_code}")
+                log_w(f"Strategy 2 (ip -4 addr show) code: {addr_code} stderr: {addr_err.strip()}")
                 log_w(f"Strategy 2 raw stdout:\n{addr_out}")
                 candidates = re.findall(r"inet\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", addr_out)
                 for candidate in candidates:
@@ -442,7 +448,7 @@ class AppLauncher:
             # Strategy 3: Check dumpsys wifi fallback
             if not phone_ip:
                 wifi_out, wifi_err, wifi_code = run_cmd([ADB_PATH, "-s", usb_device, "shell", "dumpsys wifi"])
-                log_w(f"Strategy 3 (dumpsys wifi) code: {wifi_code} len: {len(wifi_out)}")
+                log_w(f"Strategy 3 (dumpsys wifi) code: {wifi_code} len: {len(wifi_out)} stderr: {wifi_err.strip()}")
                 candidates = re.findall(r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", wifi_out)
                 seen = set()
                 for candidate in candidates:
