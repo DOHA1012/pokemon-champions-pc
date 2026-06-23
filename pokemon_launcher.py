@@ -71,6 +71,28 @@ def run_cmd(args):
     except Exception as e:
         return "", str(e), -1
 
+def is_private_ip(ip):
+    if not ip or ip.startswith("127."):
+        return False
+    if ip.startswith("169.254."):
+        return False
+    try:
+        parts = list(map(int, ip.split('.')))
+        if len(parts) != 4:
+            return False
+        # Class C
+        if parts[0] == 192 and parts[1] == 168:
+            return True
+        # Class B
+        if parts[0] == 172:
+            return True
+        # Class A
+        if parts[0] == 10:
+            return True
+    except:
+        pass
+    return False
+
 # ----------------------------------------------------
 # Main GUI Class
 # ----------------------------------------------------
@@ -299,22 +321,36 @@ class AppLauncher:
             run_cmd([ADB_PATH, "-s", usb_device, "tcpip", "5555"])
             
             # 3. Get IP address of phone
-            ip_stdout, ip_stderr, ip_code = run_cmd([ADB_PATH, "-s", usb_device, "shell", "ip route"])
             phone_ip = None
-            # Find wlan0 IP src
+            
+            # Strategy 1: Check ip route for private IP src (interface independent)
+            ip_stdout, _, _ = run_cmd([ADB_PATH, "-s", usb_device, "shell", "ip route"])
             for line in ip_stdout.splitlines():
-                if "wlan0" in line and "src" in line:
+                if "src" in line:
                     match = re.search(r"src\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", line)
                     if match:
-                        phone_ip = match.group(1)
-                        break
-            
+                        candidate = match.group(1)
+                        if is_private_ip(candidate):
+                            phone_ip = candidate
+                            break
+                            
+            # Strategy 2: Check all IPv4 interfaces (avoids unsupported -o option)
             if not phone_ip:
-                # Try fallback wlan0 ip addr show
-                ip_stdout, _, _ = run_cmd([ADB_PATH, "-s", usb_device, "shell", "ip -o -4 addr show wlan0"])
-                match = re.search(r"inet\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", ip_stdout)
-                if match:
-                    phone_ip = match.group(1)
+                ip_stdout, _, _ = run_cmd([ADB_PATH, "-s", usb_device, "shell", "ip -4 addr show"])
+                candidates = re.findall(r"inet\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", ip_stdout)
+                for candidate in candidates:
+                    if is_private_ip(candidate):
+                        phone_ip = candidate
+                        break
+                        
+            # Strategy 3: Check dumpsys wifi fallback
+            if not phone_ip:
+                wifi_stdout, _, _ = run_cmd([ADB_PATH, "-s", usb_device, "shell", "dumpsys wifi"])
+                candidates = re.findall(r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", wifi_stdout)
+                for candidate in candidates:
+                    if is_private_ip(candidate):
+                        phone_ip = candidate
+                        break
 
             if not phone_ip:
                 def err_ip():
