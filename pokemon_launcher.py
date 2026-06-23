@@ -170,11 +170,11 @@ class AppLauncher:
         res_frame.pack(fill=tk.X, pady=(0, 15))
         
         # Resolution Combobox (state="readonly")
-        self.res_var = tk.StringVar(value="1280x720")
+        self.res_var = tk.StringVar(value="기기 원본 해상도 (비율 유지)")
         self.cb_res = ttk.Combobox(
             res_frame, 
             textvariable=self.res_var, 
-            values=["3840x2160", "2560x1440", "1920x1080", "1600x900", "1280x720", "960x540"],
+            values=["기기 원본 해상도 (비율 유지)", "3840x2160", "2560x1440", "1920x1080", "1600x900", "1280x720", "960x540"],
             state="readonly"
         )
         self.cb_res.pack(fill=tk.X, pady=(0, 5))
@@ -498,6 +498,7 @@ class AppLauncher:
             return
         
         # Get resolution string
+        is_original_res = False
         if self.custom_res_var.get():
             w = self.txt_res_w.get().strip()
             h = self.txt_res_h.get().strip()
@@ -517,10 +518,15 @@ class AppLauncher:
             
             res = f"{w}x{h}"
         else:
-            res = self.res_var.get().strip().lower()
-            if not re.match(r"^\d+x\d+$", res):
-                res = "1280x720"
-                self.res_var.set("1280x720")
+            res_sel = self.res_var.get().strip()
+            if res_sel == "기기 원본 해상도 (비율 유지)":
+                is_original_res = True
+                res = "original"
+            else:
+                res = res_sel.lower()
+                if not re.match(r"^\d+x\d+$", res):
+                    res = "1280x720"
+                    self.res_var.set("1280x720")
             
         # Save current configurations
         self.save_config()
@@ -548,13 +554,17 @@ class AppLauncher:
             scrcpy_args = [
                 SCRCPY_PATH,
                 "-s", device_id,
-                f"--new-display={res}",
                 f"--start-app={PKG_NAME}",
-                "--no-vd-system-decorations",
                 "--turn-screen-off",
                 "--stay-awake",
                 f"--window-title={window_title}"
             ]
+            
+            if not is_original_res:
+                scrcpy_args.extend([
+                    f"--new-display={res}",
+                    "--no-vd-system-decorations"
+                ])
             
             if self.borderless_var.get():
                 scrcpy_args.extend(["--window-borderless", "--fullscreen"])
