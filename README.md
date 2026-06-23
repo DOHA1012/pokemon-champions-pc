@@ -8,9 +8,9 @@
 
 이 패키지는 스마트폰에서 구동되는 **포켓몬 챔피언스(Pokémon Champions)** 게임을 PC 화면에 고해상도 독립 창으로 미러링하여 키보드와 마우스로 무선 플레이할 수 있도록 돕는 전용 런처입니다.
 
-## 📥 최신 버전 다운로드 (v1.1.0)
+## 📥 최신 버전 다운로드 (v1.2.0)
 아래 링크에서 런처 패키지 zip 파일을 무료로 다운로드하실 수 있습니다. 다운로드 후 압축을 풀어 사용하세요:
-👉 **[Pokémon Champions PC Standalone Package 다운로드 (ZIP)](https://github.com/DOHA1012/pokemon-champions-pc/releases/download/v1.1.0/Pokemon_Champions_PC.zip)**
+👉 **[Pokémon Champions PC Standalone Package 다운로드 (ZIP)](https://github.com/DOHA1012/pokemon-champions-pc/releases/download/v1.2.0/Pokemon_Champions_PC.zip)**
 
 ### ✨ 주요 핵심 기능
 * **화면 해상도 다중 지원**: 720p부터 4K(3840x2160)까지 다양한 해상도 지원 (2K/4K 무선 스트리밍은 기기 성능 및 공유기 대역폭에 따라 렉이 발생할 수 있습니다.)
@@ -67,6 +67,10 @@
 * **이유**: 안드로이드 OS는 사용자가 물리 전원 버튼을 누르는 순간 렌더링 엔진 자체를 일시 정지시킵니다.
 * **해결책**: 런처가 스마트폰의 실제 화면(액정)을 자동으로 꺼주기 때문에, 실행 후에는 **전원 버튼을 직접 누르지 마시고 그대로 폰을 냅두시면 됩니다.**
 
+#### Q. 실행은 잘 되는데 마우스 클릭(터치 조작)이 아예 안 먹힙니다.
+* **이유**: 일부 스마트폰(삼성, 샤오미 등) 기기는 화면 송출과 별개로 외부 마우스 터치 입력을 차단하는 별도의 보안 옵션이 기본 활성화되어 있기 때문입니다.
+* **해결책**: 스마트폰의 **설정 ➡️ 개발자 옵션**으로 이동하여 **`USB 디버깅 (보안 설정)`** (또는 '보안 디버깅', '모의 입력 허용' 등) 옵션을 찾아서 **활성화(켬)** 상태로 변경해 주시기 바랍니다. (※ 기본 `USB 디버깅` 옵션은 켠 상태를 유지해야 합니다.)
+
 ---
 ---
 
@@ -74,9 +78,9 @@
 
 This package is a dedicated launcher designed to mirror **Pokémon Champions** running on an Android device onto a high-resolution, independent PC window, allowing wireless gameplay with a keyboard and mouse.
 
-## 📥 Download Latest Version (v1.1.0)
+## 📥 Download Latest Version (v1.2.0)
 You can download the launcher package zip file for free from the link below. Extract and run it:
-👉 **[Download Pokémon Champions PC Standalone Package (ZIP)](https://github.com/DOHA1012/pokemon-champions-pc/releases/download/v1.1.0/Pokemon_Champions_PC.zip)**
+👉 **[Download Pokémon Champions PC Standalone Package (ZIP)](https://github.com/DOHA1012/pokemon-champions-pc/releases/download/v1.2.0/Pokemon_Champions_PC.zip)**
 
 ### ✨ Core Features
 * **Expanded Resolutions**: Supports resolutions from 720p up to 4K (`3840x2160`, `2560x1440`, `1920x1080`, `1600x900`, `1280x720`, `960x540`).
@@ -132,3 +136,7 @@ This happens if your phone connects to a different Wi-Fi network or the router r
 #### Q. When I press the phone's physical power button, the PC mirroring window turns off.
 * **Reason**: Android OS pauses all GPU rendering when the physical power button is pressed.
 * **Solution**: The launcher automatically turns off the physical phone screen on startup. **Do not press the power button; just leave the phone as it is.**
+
+#### Q. The window mirrors correctly, but mouse clicks (touch input) do not work at all.
+* **Reason**: Some devices (Samsung, Xiaomi, etc.) block external touch injection by default for security, even if general debugging is on.
+* **Solution**: Go to your phone's **Settings ➡️ Developer options** and toggle **`USB debugging (Security settings)`** (or 'Allow mock input / secure debugging') **ON**. (Note: The main `USB debugging` toggle must remain ON.)
