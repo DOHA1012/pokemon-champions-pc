@@ -64,6 +64,8 @@ def run_cmd(args):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
+            errors="ignore",
             startupinfo=startupinfo,
             creationflags=subprocess.CREATE_NO_WINDOW
         )
@@ -72,7 +74,11 @@ def run_cmd(args):
         return "", str(e), -1
 
 def is_private_ip(ip):
-    if not ip or ip.startswith("127."):
+    if not ip:
+        return False
+    # Remove CIDR slash suffixes like /24 or /8 if present
+    ip = ip.split('/')[0].strip()
+    if ip.startswith("127."):
         return False
     if ip.startswith("169.254."):
         return False
