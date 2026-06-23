@@ -68,7 +68,8 @@ def run_cmd(args):
             encoding="utf-8",
             errors="ignore",
             startupinfo=startupinfo,
-            creationflags=subprocess.CREATE_NO_WINDOW
+            creationflags=subprocess.CREATE_NO_WINDOW,
+            timeout=5
         )
         return result.stdout, result.stderr, result.returncode
     except Exception as e:
@@ -107,7 +108,7 @@ class AppLauncher:
     def __init__(self, root):
         self.root = root
         self.root.title("Pokémon Champions 무선 실행기")
-        self.root.geometry("450x435")
+        self.root.geometry("450x465")
         self.root.resizable(False, False)
         
         # Style
@@ -226,6 +227,14 @@ class AppLauncher:
         )
         self.chk_borderless.pack(fill=tk.X, pady=(5, 0))
         
+        self.turn_screen_off_var = tk.BooleanVar(value=False)
+        self.chk_turn_screen_off = ttk.Checkbutton(
+            res_frame,
+            text="실행 시 스마트폰 화면 끄기 (Turn Screen Off)",
+            variable=self.turn_screen_off_var
+        )
+        self.chk_turn_screen_off.pack(fill=tk.X, pady=(5, 0))
+        
         # 4. Launch Button
         self.btn_launch = tk.Button(
             self.main_frame,
@@ -246,6 +255,9 @@ class AppLauncher:
         # Initial load
         self.load_config()
         self.refresh_devices()
+        
+        # Ensure clean exit when closing the launcher window
+        self.root.protocol("WM_DELETE_WINDOW", lambda: os._exit(0))
 
     def toggle_custom_resolution(self):
         if self.custom_res_var.get():
@@ -320,6 +332,7 @@ class AppLauncher:
                     ip = config.get("wireless_ip", "192.168.0.16")
                     res = config.get("resolution", "1280x720")
                     borderless = config.get("borderless", False)
+                    turn_screen_off = config.get("turn_screen_off", False)
                     custom_enabled = config.get("custom_resolution_enabled", False)
                     custom_w = config.get("custom_width", "1280")
                     custom_h = config.get("custom_height", "720")
@@ -328,6 +341,7 @@ class AppLauncher:
                     self.txt_ip.insert(0, ip)
                     self.res_var.set(res)
                     self.borderless_var.set(borderless)
+                    self.turn_screen_off_var.set(turn_screen_off)
                     
                     self.custom_res_var.set(custom_enabled)
                     self.txt_res_w.config(state=tk.NORMAL)
@@ -353,6 +367,7 @@ class AppLauncher:
             "wireless_ip": self.txt_ip.get().strip(),
             "resolution": self.res_var.get(),
             "borderless": self.borderless_var.get(),
+            "turn_screen_off": self.turn_screen_off_var.get(),
             "custom_resolution_enabled": self.custom_res_var.get(),
             "custom_width": custom_w if custom_w else "1280",
             "custom_height": custom_h if custom_h else "720"
@@ -597,37 +612,53 @@ class AppLauncher:
         self.root.withdraw()
         
         def run_launch():
+            # Set up local debug logging for launcher execution
+            log_path = os.path.join(BASE_PATH, "ip_debug.log")
+            if os.path.exists(log_path):
+                try: os.remove(log_path)
+                except: pass
+                
+            def log_w(msg):
+                try:
+                    with open(log_path, "a", encoding="utf-8") as lf:
+                        lf.write(f"[{time.strftime('%H:%M:%S')}] [Launcher] {msg}\n")
+                except: pass
+
+            log_w("run_launch thread triggered.")
+            
             # Wake up the phone display and dismiss the keyguard lock screen
             run_cmd([ADB_PATH, "-s", device_id, "shell", "input", "keyevent", "KEYCODE_WAKEUP"])
             run_cmd([ADB_PATH, "-s", device_id, "shell", "wm", "dismiss-keyguard"])
             
-            # 1. Start App using monkey
-            run_cmd([
-                ADB_PATH, "-s", device_id, "shell", "monkey", 
-                "-p", PKG_NAME, "-c", "android.intent.category.LAUNCHER", "1"
-            ])
+            # 1. Force-stop the app first to clean the slate
+            run_cmd([ADB_PATH, "-s", device_id, "shell", "am", "force-stop", PKG_NAME])
             
-            # 2. Run scrcpy with custom window title and screen-off/stay-awake parameters
+            # 2. Run scrcpy ONLY to create the virtual display (without --start-app)
             scrcpy_args = [
                 SCRCPY_PATH,
                 "-s", device_id,
-                f"--new-display={res}",
-                f"--start-app={PKG_NAME}",
+                f"--new-display={res}/320",
                 "--no-vd-system-decorations",
-                "--turn-screen-off",
                 "--stay-awake",
                 f"--window-title={window_title}"
             ]
             
+            if self.turn_screen_off_var.get():
+                scrcpy_args.append("--turn-screen-off")
+                
             if self.borderless_var.get():
                 scrcpy_args.extend(["--window-borderless", "--fullscreen"])
             
+            proc = None
             try:
-                # Launch scrcpy in background without CMD window
-                subprocess.Popen(
+                # Launch scrcpy and pipe stdout/stderr
+                proc = subprocess.Popen(
                     scrcpy_args,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding="utf-8",
+                    errors="ignore",
                     creationflags=subprocess.CREATE_NO_WINDOW
                 )
             except Exception as e:
@@ -638,45 +669,125 @@ class AppLauncher:
                 self.root.after(0, lambda: err(str(e)))
                 return
             
-            # 3. Wait for scrcpy window and set its icon dynamically
-            icon_path = os.path.join(BASE_PATH, "bin", "scrcpy", "pokemon_icon.ico")
-            if not os.path.exists(icon_path):
-                icon_path = os.path.join(BASE_PATH, "pokemon_icon.ico")
+            # 3. Read scrcpy pipe in real-time to detect the virtual display ID
+            display_id = None
+            start_time = time.time()
+            log_w("Reading scrcpy pipe to detect display ID...")
+            
+            while True:
+                if time.time() - start_time > 6.0:
+                    log_w("Timeout waiting for display ID from pipe.")
+                    break
                 
-            if os.path.exists(icon_path):
-                try:
-                    import time
-                    import ctypes
+                line = proc.stdout.readline()
+                if not line:
+                    if proc.poll() is not None:
+                        log_w(f"scrcpy process terminated early with code {proc.poll()}")
+                        break
+                    time.sleep(0.05)
+                    continue
+                
+                # Check for display ID pattern from scrcpy logs
+                # e.g., "[server] INFO: New display: 1280x720/320 (id=49)"
+                match = re.search(r"New display:.*\(id=(\d+)\)", line)
+                if match:
+                    display_id = match.group(1)
+                    log_w(f"Successfully detected display ID from scrcpy log: {display_id}")
+                    break
+            
+            # 4. Fallback if display_id not found via pipe
+            if not display_id:
+                log_w("Falling back to dumpsys display parsing...")
+                for attempt in range(6):  # try for another 3 seconds
+                    time.sleep(0.5)
+                    stdout, _, _ = run_cmd([ADB_PATH, "-s", device_id, "shell", "dumpsys display"])
                     
-                    user32 = ctypes.windll.user32
-                    WM_SETICON = 0x80
-                    ICON_SMALL = 0
-                    ICON_BIG = 1
-                    IMAGE_ICON = 1
-                    LR_LOADFROMFILE = 0x0010
+                    # Match DisplayInfo{"scrcpy", displayId 49}
+                    match = re.search(r'DisplayInfo\{"scrcpy",\s+displayId\s+(\d+)', stdout)
+                    if match:
+                        display_id = match.group(1)
+                        log_w(f"Found display ID via dumpsys DisplayInfo: {display_id}")
+                        break
                     
-                    # Wait up to 12 seconds for the window to appear
-                    hwnd = None
-                    for _ in range(60):
-                        time.sleep(0.2)
-                        hwnd = user32.FindWindowW(None, window_title)
-                        if hwnd:
+                    # Match general VIRTUAL viewport
+                    ids = re.findall(r"DisplayViewport\{type=VIRTUAL,.*displayId=(\d+)", stdout)
+                    if ids:
+                        valid_ids = [int(i) for i in ids if int(i) > 0]
+                        if valid_ids:
+                            display_id = str(max(valid_ids))
+                            log_w(f"Found display ID via dumpsys Viewport: {display_id}")
                             break
-                            
-                    if hwnd:
-                        # Load icon
-                        h_icon = user32.LoadImageW(
-                            None,
-                            icon_path,
-                            IMAGE_ICON,
-                            0, 0,
-                            LR_LOADFROMFILE
-                        )
-                        if h_icon:
-                            user32.SendMessageW(hwnd, WM_SETICON, ICON_SMALL, h_icon)
-                            user32.SendMessageW(hwnd, WM_SETICON, ICON_BIG, h_icon)
-                except Exception:
+            
+            # 5. Final hard fallback to 0 (main screen) if everything else fails
+            if not display_id:
+                display_id = "0"
+                log_w(f"All detection methods failed. Falling back to display ID: {display_id}")
+            
+            # 6. Launch the game targeted at the detected display ID using explicit activity launch
+            log_w(f"Launching game activity on display {display_id}...")
+            launch_out, launch_err, launch_code = run_cmd([
+                ADB_PATH, "-s", device_id, "shell", "am", "start-activity",
+                "--display", display_id,
+                "-n", f"{PKG_NAME}/com.unity3d.player.UnityPlayerActivity"
+            ])
+            log_w(f"Launch app result code: {launch_code}")
+            log_w(f"Launch app stdout: {launch_out.strip()}")
+            log_w(f"Launch app stderr: {launch_err.strip()}")
+            
+            # 7. Spawn a daemon thread to keep draining scrcpy stdout/stderr buffer to prevent blocking
+            def drain_pipe(p):
+                try:
+                    while True:
+                        l = p.stdout.readline()
+                        if not l and p.poll() is not None:
+                            break
+                except:
                     pass
+            threading.Thread(target=drain_pipe, args=(proc,), daemon=True).start()
+            
+            # 8. Wait for scrcpy window and set its icon dynamically (runs in parallel)
+            def set_icon_work():
+                icon_path = os.path.join(BASE_PATH, "bin", "scrcpy", "pokemon_icon.ico")
+                if not os.path.exists(icon_path):
+                    icon_path = os.path.join(BASE_PATH, "pokemon_icon.ico")
+                    
+                if os.path.exists(icon_path):
+                    try:
+                        import ctypes
+                        user32 = ctypes.windll.user32
+                        WM_SETICON = 0x80
+                        ICON_SMALL = 0
+                        ICON_BIG = 1
+                        IMAGE_ICON = 1
+                        LR_LOADFROMFILE = 0x0010
+                        
+                        # Wait up to 12 seconds for the window to appear
+                        hwnd = None
+                        for _ in range(60):
+                            time.sleep(0.2)
+                            hwnd = user32.FindWindowW(None, window_title)
+                            if hwnd:
+                                break
+                                
+                        if hwnd:
+                            h_icon = user32.LoadImageW(
+                                None,
+                                icon_path,
+                                IMAGE_ICON,
+                                0, 0,
+                                LR_LOADFROMFILE
+                            )
+                            if h_icon:
+                                user32.SendMessageW(hwnd, WM_SETICON, ICON_SMALL, h_icon)
+                                user32.SendMessageW(hwnd, WM_SETICON, ICON_BIG, h_icon)
+                    except Exception:
+                        pass
+                        
+            threading.Thread(target=set_icon_work, daemon=True).start()
+            
+            # 9. Wait for scrcpy to terminate before exiting launcher to prevent lingering processes
+            proc.wait()
+            log_w("scrcpy process terminated. Exiting launcher.")
             
             # Exit process cleanly
             import os as local_os
