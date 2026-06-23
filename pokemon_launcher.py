@@ -107,7 +107,7 @@ class AppLauncher:
     def __init__(self, root):
         self.root = root
         self.root.title("Pokémon Champions 무선 실행기")
-        self.root.geometry("450x475")
+        self.root.geometry("450x505")
         self.root.resizable(False, False)
         
         # Style
@@ -217,13 +217,27 @@ class AppLauncher:
         )
         self.chk_borderless.pack(fill=tk.X, pady=(5, 0))
         
-        self.force_ratio_var = tk.BooleanVar(value=False)
-        self.chk_force_ratio = ttk.Checkbutton(
+        self.phone_ratio_var = tk.BooleanVar(value=False)
+        self.chk_phone_ratio = ttk.Checkbutton(
             res_frame,
-            text="폰 원본 화면 직접 미러링 사용 (화면 찌그러짐 방지)",
-            variable=self.force_ratio_var
+            text="폰원본 화면의 해상도로 사용 (찌그러짐 방지)",
+            variable=self.phone_ratio_var,
+            command=self.toggle_phone_ratio_mode
         )
-        self.chk_force_ratio.pack(fill=tk.X, pady=(5, 0))
+        self.chk_phone_ratio.pack(fill=tk.X, pady=(5, 0))
+        
+        self.phone_res_row = ttk.Frame(res_frame)
+        self.phone_res_row.pack(fill=tk.X, pady=(5, 0))
+        
+        ttk.Label(self.phone_res_row, text="비율 유지 해상도:").pack(side=tk.LEFT, padx=(0, 5))
+        self.phone_res_var = tk.StringVar()
+        self.cb_phone_res = ttk.Combobox(
+            self.phone_res_row,
+            textvariable=self.phone_res_var,
+            state=tk.DISABLED,
+            height=5
+        )
+        self.cb_phone_res.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
         # 4. Launch Button
         self.btn_launch = tk.Button(
@@ -265,7 +279,8 @@ class AppLauncher:
                     ip = config.get("wireless_ip", "192.168.0.16")
                     res = config.get("resolution", "1280x720")
                     borderless = config.get("borderless", False)
-                    force_ratio = config.get("force_ratio", False)
+                    phone_ratio = config.get("phone_ratio_enabled", False)
+                    phone_ratio_res = config.get("phone_ratio_resolution", "")
                     custom_enabled = config.get("custom_resolution_enabled", False)
                     custom_w = config.get("custom_width", "1280")
                     custom_h = config.get("custom_height", "720")
@@ -274,7 +289,8 @@ class AppLauncher:
                     self.txt_ip.insert(0, ip)
                     self.res_var.set(res)
                     self.borderless_var.set(borderless)
-                    self.force_ratio_var.set(force_ratio)
+                    self.phone_ratio_var.set(phone_ratio)
+                    self.phone_res_var.set(phone_ratio_res)
                     
                     self.custom_res_var.set(custom_enabled)
                     self.txt_res_w.config(state=tk.NORMAL)
@@ -300,7 +316,8 @@ class AppLauncher:
             "wireless_ip": self.txt_ip.get().strip(),
             "resolution": self.res_var.get(),
             "borderless": self.borderless_var.get(),
-            "force_ratio": self.force_ratio_var.get(),
+            "phone_ratio_enabled": self.phone_ratio_var.get(),
+            "phone_ratio_resolution": self.phone_res_var.get(),
             "custom_resolution_enabled": self.custom_res_var.get(),
             "custom_width": custom_w if custom_w else "1280",
             "custom_height": custom_h if custom_h else "720"
@@ -341,6 +358,72 @@ class AppLauncher:
         else:
             self.dev_var.set("")
             self.set_status("감지된 기기 없음", "red")
+            
+        if devices and self.phone_ratio_var.get():
+            self.update_phone_ratio_resolutions()
+
+    def toggle_phone_ratio_mode(self):
+        if self.phone_ratio_var.get():
+            self.cb_res.config(state=tk.DISABLED)
+            self.chk_custom_res.config(state=tk.DISABLED)
+            self.txt_res_w.config(state=tk.DISABLED)
+            self.txt_res_h.config(state=tk.DISABLED)
+            self.cb_phone_res.config(state="readonly")
+            self.update_phone_ratio_resolutions()
+        else:
+            self.cb_phone_res.config(state=tk.DISABLED)
+            self.chk_custom_res.config(state=tk.NORMAL)
+            self.cb_res.config(state="readonly")
+            self.toggle_custom_resolution()
+
+    def update_phone_ratio_resolutions(self):
+        selected = self.dev_var.get()
+        if not selected:
+            self.cb_phone_res['values'] = []
+            self.phone_res_var.set("연결된 기기 없음")
+            return
+            
+        device_id = selected.split()[0]
+        self.set_status("폰 원본 해상도 조회 중...", "blue")
+        
+        def run():
+            stdout, stderr, code = run_cmd([ADB_PATH, "-s", device_id, "shell", "wm", "size"])
+            match = re.findall(r"size:\s*(\d+)x(\d+)", stdout)
+            if match:
+                w_str, h_str = match[-1]
+                w_orig, h_orig = int(w_str), int(h_str)
+                w = max(w_orig, h_orig)
+                h = min(w_orig, h_orig)
+                
+                def make_even(val):
+                    return int(val) // 2 * 2
+                    
+                res_list = [
+                    f"{make_even(w * 1.5)}x{make_even(h * 1.5)} (조금 더 큼 - 1.5x)",
+                    f"{make_even(w * 1.25)}x{make_even(h * 1.25)} (조금 더 큼 - 1.25x)",
+                    f"{w}x{h} (폰 원본 해상도)",
+                    f"{make_even(w * 0.75)}x{make_even(h * 0.75)} (조금 더 작음 - 0.75x)",
+                    f"{make_even(w * 0.5)}x{make_even(h * 0.5)} (조금 더 작음 - 0.5x)"
+                ]
+                
+                def update_ui():
+                    self.cb_phone_res['values'] = res_list
+                    curr_val = self.phone_res_var.get()
+                    if curr_val in res_list:
+                        self.phone_res_var.set(curr_val)
+                    else:
+                        self.cb_phone_res.current(2)
+                    self.set_status("폰 원본 해상도 반영 완료", "green")
+                    
+                self.root.after(0, update_ui)
+            else:
+                def update_ui_fail():
+                    self.cb_phone_res['values'] = ["해상도 조회 실패"]
+                    self.phone_res_var.set("해상도 조회 실패")
+                    self.set_status("폰 해상도 조회 실패", "red")
+                self.root.after(0, update_ui_fail)
+                
+        threading.Thread(target=run, daemon=True).start()
 
     def start_wireless_connect(self):
         ip = self.txt_ip.get().strip()
@@ -509,7 +592,13 @@ class AppLauncher:
             return
         
         # Get resolution string
-        if self.custom_res_var.get():
+        if self.phone_ratio_var.get():
+            full_res = self.phone_res_var.get().strip()
+            if not full_res or "x" not in full_res:
+                res = "1280x720"
+            else:
+                res = full_res.split()[0]
+        elif self.custom_res_var.get():
             w = self.txt_res_w.get().strip()
             h = self.txt_res_h.get().strip()
             
@@ -541,9 +630,6 @@ class AppLauncher:
         
         self.set_status("포켓몬 챔피언스 실행 및 미러링 시작...", "blue")
         
-        # Check if we should force ratio (temporarily resize primary screen)
-        is_force_ratio = self.force_ratio_var.get()
-        
         # Hide the main Tkinter window immediately so it feels like it closed
         self.root.withdraw()
         
@@ -560,35 +646,24 @@ class AppLauncher:
             ])
             
             # 2. Run scrcpy with custom window title and screen-off/stay-awake parameters
+            try:
+                w_val = int(res.split('x')[0])
+                density_val = int((w_val / 1920) * 420)
+                density_val = max(160, min(640, density_val))
+            except:
+                density_val = 420
+                
             scrcpy_args = [
                 SCRCPY_PATH,
                 "-s", device_id,
+                f"--new-display={res}",
+                f"--new-display-dpi={density_val}",
                 f"--start-app={PKG_NAME}",
                 "--no-vd-system-decorations",
                 "--turn-screen-off",
                 "--stay-awake",
                 f"--window-title={window_title}"
             ]
-            
-            if is_force_ratio:
-                # Direct mirroring mode: keep original ratio, limit max size (avoids altering phone screen)
-                try:
-                    max_size_val = res.split('x')[0]
-                except:
-                    max_size_val = "1280"
-                scrcpy_args.append(f"--max-size={max_size_val}")
-            else:
-                # Virtual display mode: specify resolution and DPI to improve ratio handling
-                try:
-                    w_val = int(res.split('x')[0])
-                    density_val = int((w_val / 1920) * 420)
-                    density_val = max(160, min(640, density_val))
-                except:
-                    density_val = 420
-                scrcpy_args.extend([
-                    f"--new-display={res}",
-                    f"--new-display-dpi={density_val}"
-                ])
             
             if self.borderless_var.get():
                 scrcpy_args.extend(["--window-borderless", "--fullscreen"])
