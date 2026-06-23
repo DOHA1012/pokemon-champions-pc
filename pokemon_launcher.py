@@ -162,13 +162,45 @@ class AppLauncher:
         res_frame = ttk.LabelFrame(self.main_frame, text=" 3. 해상도 및 화면 설정 ", padding="8")
         res_frame.pack(fill=tk.X, pady=(0, 15))
         
+        # Resolution Combobox (state="readonly")
         self.res_var = tk.StringVar(value="1280x720")
         self.cb_res = ttk.Combobox(
             res_frame, 
             textvariable=self.res_var, 
-            values=["3840x2160", "2560x1440", "1920x1080", "1600x900", "1280x720", "960x540"]
+            values=["3840x2160", "2560x1440", "1920x1080", "1600x900", "1280x720", "960x540"],
+            state="readonly"
         )
-        self.cb_res.pack(fill=tk.X)
+        self.cb_res.pack(fill=tk.X, pady=(0, 5))
+        
+        # Custom Resolution Checkbox
+        self.custom_res_var = tk.BooleanVar(value=False)
+        self.chk_custom_res = ttk.Checkbutton(
+            res_frame,
+            text="사용자 지정 해상도 사용",
+            variable=self.custom_res_var,
+            command=self.toggle_custom_resolution
+        )
+        self.chk_custom_res.pack(fill=tk.X, pady=(0, 5))
+        
+        # Custom Resolution Input Box Row (Horizontal Layout)
+        self.custom_res_row = ttk.Frame(res_frame)
+        self.custom_res_row.pack(fill=tk.X, pady=(0, 5))
+        
+        ttk.Label(self.custom_res_row, text="가로:").pack(side=tk.LEFT, padx=(0, 5))
+        self.txt_res_w = ttk.Entry(self.custom_res_row, width=8)
+        self.txt_res_w.insert(0, "1280")
+        self.txt_res_w.pack(side=tk.LEFT, padx=(0, 10))
+        
+        ttk.Label(self.custom_res_row, text="x").pack(side=tk.LEFT, padx=(0, 10))
+        
+        ttk.Label(self.custom_res_row, text="세로:").pack(side=tk.LEFT, padx=(0, 5))
+        self.txt_res_h = ttk.Entry(self.custom_res_row, width=8)
+        self.txt_res_h.insert(0, "720")
+        self.txt_res_h.pack(side=tk.LEFT)
+        
+        # Enable/Disable initial state of custom inputs
+        self.txt_res_w.config(state=tk.DISABLED)
+        self.txt_res_h.config(state=tk.DISABLED)
         
         self.borderless_var = tk.BooleanVar(value=False)
         self.chk_borderless = ttk.Checkbutton(
@@ -199,6 +231,16 @@ class AppLauncher:
         self.load_config()
         self.refresh_devices()
 
+    def toggle_custom_resolution(self):
+        if self.custom_res_var.get():
+            self.cb_res.config(state=tk.DISABLED)
+            self.txt_res_w.config(state=tk.NORMAL)
+            self.txt_res_h.config(state=tk.NORMAL)
+        else:
+            self.cb_res.config(state="readonly")
+            self.txt_res_w.config(state=tk.DISABLED)
+            self.txt_res_h.config(state=tk.DISABLED)
+
     def load_config(self):
         config_path = os.path.join(BASE_PATH, "config.json")
         if os.path.exists(config_path):
@@ -208,20 +250,42 @@ class AppLauncher:
                     ip = config.get("wireless_ip", "192.168.0.16")
                     res = config.get("resolution", "1280x720")
                     borderless = config.get("borderless", False)
+                    custom_enabled = config.get("custom_resolution_enabled", False)
+                    custom_w = config.get("custom_width", "1280")
+                    custom_h = config.get("custom_height", "720")
                     
                     self.txt_ip.delete(0, tk.END)
                     self.txt_ip.insert(0, ip)
                     self.res_var.set(res)
                     self.borderless_var.set(borderless)
+                    
+                    self.custom_res_var.set(custom_enabled)
+                    self.txt_res_w.config(state=tk.NORMAL)
+                    self.txt_res_w.delete(0, tk.END)
+                    self.txt_res_w.insert(0, custom_w)
+                    self.txt_res_h.config(state=tk.NORMAL)
+                    self.txt_res_h.delete(0, tk.END)
+                    self.txt_res_h.insert(0, custom_h)
+                    
+                    # Update widget disabled states based on custom checkbox
+                    self.toggle_custom_resolution()
             except Exception:
                 pass
 
     def save_config(self):
         config_path = os.path.join(BASE_PATH, "config.json")
+        
+        # Read w/h safely while disabled state might block read on some platforms
+        custom_w = self.txt_res_w.get().strip()
+        custom_h = self.txt_res_h.get().strip()
+        
         config = {
             "wireless_ip": self.txt_ip.get().strip(),
             "resolution": self.res_var.get(),
-            "borderless": self.borderless_var.get()
+            "borderless": self.borderless_var.get(),
+            "custom_resolution_enabled": self.custom_res_var.get(),
+            "custom_width": custom_w if custom_w else "1280",
+            "custom_height": custom_h if custom_h else "720"
         }
         try:
             with open(config_path, "w", encoding="utf-8") as f:
@@ -387,12 +451,30 @@ class AppLauncher:
             messagebox.showerror("오류", "연결된 기기가 없습니다. 새로고침을 하거나 무선 연결을 완료해 주세요.")
             return
         
-        # Verify resolution format "WIDTHxHEIGHT" (e.g. 1920x1080)
-        res = self.res_var.get().strip().lower()
-        if not re.match(r"^\d+x\d+$", res):
-            messagebox.showwarning("해상도 형식 오류", "해상도 형식이 올바르지 않습니다. '가로x세로' 형식(예: 1280x720)으로 입력해 주세요.\n기본값인 1280x720으로 자동 설정됩니다.")
-            res = "1280x720"
-            self.res_var.set("1280x720")
+        # Get resolution string
+        if self.custom_res_var.get():
+            w = self.txt_res_w.get().strip()
+            h = self.txt_res_h.get().strip()
+            
+            # Validation: check if positive integers
+            if not w.isdigit() or not h.isdigit() or int(w) <= 0 or int(h) <= 0:
+                messagebox.showwarning("해상도 형식 오류", "사용자 지정 해상도 값이 올바르지 않습니다. 가로, 세로에 올바른 정수 값을 입력해 주세요.\n기본값인 1280x720으로 자동 설정됩니다.")
+                w, h = "1280", "720"
+                
+                # Update UI
+                self.txt_res_w.config(state=tk.NORMAL)
+                self.txt_res_w.delete(0, tk.END)
+                self.txt_res_w.insert(0, "1280")
+                self.txt_res_h.config(state=tk.NORMAL)
+                self.txt_res_h.delete(0, tk.END)
+                self.txt_res_h.insert(0, "720")
+            
+            res = f"{w}x{h}"
+        else:
+            res = self.res_var.get().strip().lower()
+            if not re.match(r"^\d+x\d+$", res):
+                res = "1280x720"
+                self.res_var.set("1280x720")
             
         # Save current configurations
         self.save_config()
