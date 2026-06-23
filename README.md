@@ -8,14 +8,15 @@
 
 이 패키지는 스마트폰에서 구동되는 **포켓몬 챔피언스(Pokémon Champions)** 게임을 PC 화면에 고해상도 독립 창으로 미러링하여 키보드와 마우스로 무선 플레이할 수 있도록 돕는 전용 런처입니다.
 
-## 📥 최신 버전 다운로드 (v1.2.0)
+## 📥 최신 버전 다운로드 (v1.3.0)
 아래 링크에서 런처 패키지 zip 파일을 무료로 다운로드하실 수 있습니다. 다운로드 후 압축을 풀어 사용하세요:
-👉 **[Pokémon Champions PC Standalone Package 다운로드 (ZIP)](https://github.com/DOHA1012/pokemon-champions-pc/releases/download/v1.2.0/Pokemon_Champions_PC.zip)**
+👉 **[Pokémon Champions PC Standalone Package 다운로드 (ZIP)](https://github.com/DOHA1012/pokemon-champions-pc/releases/download/v1.3.0/Pokemon_Champions_PC.zip)**
 
 ### ✨ 주요 핵심 기능
 * **화면 해상도 다중 지원**: 720p부터 4K(3840x2160)까지 다양한 해상도 지원 (2K/4K 무선 스트리밍은 기기 성능 및 공유기 대역폭에 따라 렉이 발생할 수 있습니다.)
 * **테두리 없는 전체화면 모드**: 타이틀 바를 숨기고 화면을 꽉 차게 띄워 몰입감을 높여줍니다.
 * **폰 화면 자동 끄기 & 연결 유지 (Stay Awake)**: 게임 구동 시 폰의 실제 화면(액정)은 배터리 및 발열 방지를 위해 자동으로 꺼지고, 플레이 중에는 폰이 대기 상태로 잠들지 않도록 제어합니다.
+* **최대 프레임 제한 옵션 (FPS)**: 네트워크 대역폭 및 PC/기기 성능에 맞춰 프레임 제한을 유연하게(30 FPS ~ 144 FPS, 혹은 제한 없음) 조정하여 버벅임 현상을 대폭 개선할 수 있습니다.
 * **기기 자동 깨우기 및 잠금 해제**: 실행 즉시 폰의 화면을 자동으로 켜고 잠금 화면을 진입해 줍니다.
 
 ---
@@ -78,14 +79,15 @@
 
 This package is a dedicated launcher designed to mirror **Pokémon Champions** running on an Android device onto a high-resolution, independent PC window, allowing wireless gameplay with a keyboard and mouse.
 
-## 📥 Download Latest Version (v1.2.0)
+## 📥 Download Latest Version (v1.3.0)
 You can download the launcher package zip file for free from the link below. Extract and run it:
-👉 **[Download Pokémon Champions PC Standalone Package (ZIP)](https://github.com/DOHA1012/pokemon-champions-pc/releases/download/v1.2.0/Pokemon_Champions_PC.zip)**
+👉 **[Download Pokémon Champions PC Standalone Package (ZIP)](https://github.com/DOHA1012/pokemon-champions-pc/releases/download/v1.3.0/Pokemon_Champions_PC.zip)**
 
 ### ✨ Core Features
 * **Expanded Resolutions**: Supports resolutions from 720p up to 4K (`3840x2160`, `2560x1440`, `1920x1080`, `1600x900`, `1280x720`, `960x540`).
 * **Borderless Fullscreen**: Hides the title bar and stretches the window to full screen for immersive play.
 * **Physical Screen Off & Stay Awake**: The phone's screen automatically goes black upon launch to save battery and prevent burn-in, while preventing the device from falling asleep during mirroring.
+* **Max FPS Limit Option**: Allows configuration of the maximum frame rate limit (30 FPS up to 144 FPS, or unlimited) to optimize bandwidth utilization and eliminate wireless lag.
 * **Display Wakeup & Unlock**: Automatically turns on the phone screen and attempts to bypass the lock screen on startup.
 
 ---

@@ -108,7 +108,7 @@ class AppLauncher:
     def __init__(self, root):
         self.root = root
         self.root.title("Pokémon Champions 무선 실행기")
-        self.root.geometry("450x530")
+        self.root.geometry("450x555")
         self.root.resizable(False, False)
         
         # Style
@@ -235,6 +235,21 @@ class AppLauncher:
         )
         self.chk_turn_screen_off.pack(fill=tk.X, pady=(5, 0))
         
+        # FPS Row
+        fps_row = ttk.Frame(res_frame)
+        fps_row.pack(fill=tk.X, pady=(5, 0))
+        
+        ttk.Label(fps_row, text="최대 프레임 제한 (FPS):").pack(side=tk.LEFT, padx=(0, 5))
+        self.fps_var = tk.StringVar(value="제한 없음 (기본값)")
+        self.cb_fps = ttk.Combobox(
+            fps_row,
+            textvariable=self.fps_var,
+            values=["제한 없음 (기본값)", "144", "120", "90", "60", "30"],
+            state="readonly",
+            width=18
+        )
+        self.cb_fps.pack(side=tk.LEFT)
+        
         # 4. Launch Button
         self.btn_launch = tk.Button(
             self.main_frame,
@@ -333,6 +348,7 @@ class AppLauncher:
                     res = config.get("resolution", "1280x720")
                     borderless = config.get("borderless", False)
                     turn_screen_off = config.get("turn_screen_off", False)
+                    fps = config.get("fps", "제한 없음 (기본값)")
                     custom_enabled = config.get("custom_resolution_enabled", False)
                     custom_w = config.get("custom_width", "1280")
                     custom_h = config.get("custom_height", "720")
@@ -342,6 +358,7 @@ class AppLauncher:
                     self.res_var.set(res)
                     self.borderless_var.set(borderless)
                     self.turn_screen_off_var.set(turn_screen_off)
+                    self.fps_var.set(fps)
                     
                     self.custom_res_var.set(custom_enabled)
                     self.txt_res_w.config(state=tk.NORMAL)
@@ -368,6 +385,7 @@ class AppLauncher:
             "resolution": self.res_var.get(),
             "borderless": self.borderless_var.get(),
             "turn_screen_off": self.turn_screen_off_var.get(),
+            "fps": self.fps_var.get(),
             "custom_resolution_enabled": self.custom_res_var.get(),
             "custom_width": custom_w if custom_w else "1280",
             "custom_height": custom_h if custom_h else "720"
@@ -648,6 +666,10 @@ class AppLauncher:
                 
             if self.borderless_var.get():
                 scrcpy_args.extend(["--window-borderless", "--fullscreen"])
+                
+            fps_val = self.fps_var.get()
+            if fps_val and "제한 없음" not in fps_val:
+                scrcpy_args.append(f"--max-fps={fps_val}")
             
             proc = None
             try:
