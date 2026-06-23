@@ -104,18 +104,6 @@ def is_private_ip(ip):
 # Main GUI Class
 # ----------------------------------------------------
 class AppLauncher:
-    def get_device_resolution(self, device_id):
-        # adb shell wm size -> "Physical size: 1080x2340"
-        stdout, _, _ = run_cmd([ADB_PATH, "-s", device_id, "shell", "wm", "size"])
-        match = re.search(r"size:\s*(\d+)x(\d+)", stdout)
-        if match:
-            val1 = int(match.group(1))
-            val2 = int(match.group(2))
-            w = max(val1, val2)
-            h = min(val1, val2)
-            return w, h
-        return 1920, 1080
-
     def __init__(self, root):
         self.root = root
         self.root.title("Pokémon Champions 무선 실행기")
@@ -182,11 +170,11 @@ class AppLauncher:
         res_frame.pack(fill=tk.X, pady=(0, 15))
         
         # Resolution Combobox (state="readonly")
-        self.res_var = tk.StringVar(value="기기 원본 해상도 (비율 유지)")
+        self.res_var = tk.StringVar(value="1280x720")
         self.cb_res = ttk.Combobox(
             res_frame, 
             textvariable=self.res_var, 
-            values=["기기 원본 해상도 (비율 유지)", "3840x2160", "2560x1440", "1920x1080", "1600x900", "1280x720", "960x540"],
+            values=["3840x2160", "2560x1440", "1920x1080", "1600x900", "1280x720", "960x540"],
             state="readonly"
         )
         self.cb_res.pack(fill=tk.X, pady=(0, 5))
@@ -509,10 +497,7 @@ class AppLauncher:
             messagebox.showerror("오류", "연결된 기기가 없습니다. 새로고침을 하거나 무선 연결을 완료해 주세요.")
             return
         
-        device_id = selected.split()[0]
-        
         # Get resolution string
-        is_original_res = False
         if self.custom_res_var.get():
             w = self.txt_res_w.get().strip()
             h = self.txt_res_h.get().strip()
@@ -532,34 +517,15 @@ class AppLauncher:
             
             res = f"{w}x{h}"
         else:
-            res_sel = self.res_var.get().strip()
-            if res_sel == "기기 원본 해상도 (비율 유지)":
-                is_original_res = True
-                res = "original"
-            else:
-                res = res_sel.lower()
-                if not re.match(r"^\d+x\d+$", res):
-                    res = "1280x720"
-                    self.res_var.set("1280x720")
+            res = self.res_var.get().strip().lower()
+            if not re.match(r"^\d+x\d+$", res):
+                res = "1280x720"
+                self.res_var.set("1280x720")
             
-        # Parse width and height for window scaling to prevent stretching
-        if is_original_res:
-            w_val, h_val = self.get_device_resolution(device_id)
-        else:
-            try:
-                parts = res.split('x')
-                w_val = int(parts[0])
-                h_val = int(parts[1])
-            except:
-                w_val, h_val = 1280, 720
-                
-        # Calculate target window size keeping the aspect ratio (target height is 720 for comfortable viewing)
-        H_target = 720
-        W_target = int(w_val * (H_target / h_val))
-        
         # Save current configurations
         self.save_config()
         
+        device_id = selected.split()[0]
         window_title = "Pokémon Champions"
         
         self.set_status("포켓몬 챔피언스 실행 및 미러링 시작...", "blue")
@@ -582,19 +548,13 @@ class AppLauncher:
             scrcpy_args = [
                 SCRCPY_PATH,
                 "-s", device_id,
+                f"--new-display={res}",
                 f"--start-app={PKG_NAME}",
+                "--no-vd-system-decorations",
                 "--turn-screen-off",
                 "--stay-awake",
-                f"--window-title={window_title}",
-                f"--window-width={W_target}",
-                f"--window-height={H_target}"
+                f"--window-title={window_title}"
             ]
-            
-            if not is_original_res:
-                scrcpy_args.extend([
-                    f"--new-display={res}",
-                    "--no-vd-system-decorations"
-                ])
             
             if self.borderless_var.get():
                 scrcpy_args.extend(["--window-borderless", "--fullscreen"])
